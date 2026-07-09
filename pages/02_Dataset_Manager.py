@@ -4,6 +4,8 @@ from database.db import get_db
 from services.data_manager import save_uploaded_file, get_user_datasets, delete_dataset, load_dataset_as_df
 
 st.set_page_config(page_title="Dataset Manager", page_icon="📁", layout="wide")
+from utils.ui_utils import load_css
+load_css()
 
 if 'user_id' not in st.session_state:
     st.warning("Please log in to access this page.")

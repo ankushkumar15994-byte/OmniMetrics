@@ -4,6 +4,8 @@ from services.data_manager import get_user_datasets, load_dataset_as_df
 from services.ai_insights import generate_insights, generate_report_markdown
 
 st.set_page_config(page_title="AI Insights & Reports", page_icon="🧠", layout="wide")
+from utils.ui_utils import load_css
+load_css()
 
 if 'user_id' not in st.session_state:
     st.warning("Please log in to access this page.")

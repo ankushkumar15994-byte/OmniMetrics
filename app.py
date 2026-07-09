@@ -11,6 +11,8 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
+from utils.ui_utils import load_css
+load_css()
 
 # Landing Page CSS for animations and styling
 st.markdown("""

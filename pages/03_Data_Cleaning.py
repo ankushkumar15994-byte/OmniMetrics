@@ -6,6 +6,8 @@ from services.data_manager import get_user_datasets, load_dataset_as_df
 from preprocessing.cleaner import handle_missing_values, remove_duplicates, encode_categorical, scale_features, handle_outliers
 
 st.set_page_config(page_title="Data Cleaning", page_icon="🧹", layout="wide")
+from utils.ui_utils import load_css
+load_css()
 
 if 'user_id' not in st.session_state:
     st.warning("Please log in to access this page.")

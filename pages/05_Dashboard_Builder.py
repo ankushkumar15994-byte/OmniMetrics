@@ -5,6 +5,8 @@ from services.data_manager import get_user_datasets, load_dataset_as_df
 from visualizations.charts import plot_histogram, plot_scatter, plot_bar, plot_pie, plot_line
 
 st.set_page_config(page_title="Dashboard Builder", page_icon="📈", layout="wide")
+from utils.ui_utils import load_css
+load_css()
 
 if 'user_id' not in st.session_state:
     st.warning("Please log in to access this page.")

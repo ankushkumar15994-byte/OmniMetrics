@@ -5,6 +5,8 @@ from services.data_manager import get_user_datasets, load_dataset_as_df
 from machine_learning.models import train_classification, train_regression, train_clustering, save_model
 
 st.set_page_config(page_title="Machine Learning Studio", page_icon="🤖", layout="wide")
+from utils.ui_utils import load_css
+load_css()
 
 if 'user_id' not in st.session_state:
     st.warning("Please log in to access this page.")

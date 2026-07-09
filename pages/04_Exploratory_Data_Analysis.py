@@ -10,6 +10,8 @@ from visualizations.charts import (
 )
 
 st.set_page_config(page_title="Exploratory Data Analysis", page_icon="📊", layout="wide")
+from utils.ui_utils import load_css
+load_css()
 
 if 'user_id' not in st.session_state:
     st.warning("Please log in to access this page.")

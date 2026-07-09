@@ -3,6 +3,8 @@ from database.db import get_db
 from authentication.auth_service import authenticate_user, create_user, log_activity
 
 st.set_page_config(page_title="Login/Signup", page_icon="🔐")
+from utils.ui_utils import load_css
+load_css()
 
 st.title("Authentication")
 
