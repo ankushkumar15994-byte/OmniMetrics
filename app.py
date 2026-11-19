@@ -1,3 +1,4 @@
+import html
 import streamlit as st
 from database.db import engine, Base
 from config.settings import APP_NAME
@@ -15,11 +16,12 @@ Base.metadata.create_all(bind=engine)
 load_css()
 brand()
 
-# Sidebar session context
+# Sidebar session context. Escape the account name before rendering trusted HTML.
 if "user_id" in st.session_state:
+    safe_username = html.escape(str(st.session_state.get("username", "User")))
     st.sidebar.markdown(
         f'<div class="om-status"><span class="om-dot"></span> Signed in as '
-        f'{st.session_state.get("username", "User")}</div>',
+        f'{safe_username}</div>',
         unsafe_allow_html=True,
     )
     if st.sidebar.button("Sign out", use_container_width=True):
@@ -40,7 +42,8 @@ st.markdown(
 )
 
 if "user_id" in st.session_state:
-    st.success(f"Welcome back, {st.session_state.get('username', 'there')}. Your analytics workspace is ready.")
+    safe_username = html.escape(str(st.session_state.get("username", "there")))
+    st.success(f"Welcome back, {safe_username}. Your analytics workspace is ready.")
     c1, c2, c3 = st.columns(3)
     c1.metric("Workspace", "Active", help="You are authenticated.")
     c2.metric("Analytics modules", "6", help="Dataset, Cleaning, EDA, Dashboard, ML and Insights.")

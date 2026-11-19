@@ -1,10 +1,12 @@
+import html
 import os
 import streamlit as st
 
 ROOT = os.path.dirname(os.path.dirname(__file__))
 
+
 def load_css():
-    """Load the shared Midnight Pro theme once per Streamlit rerun."""
+    """Load the shared Midnight Pro theme."""
     css_path = os.path.join(ROOT, "assets", "style.css")
     try:
         with open(css_path, "r", encoding="utf-8") as css_file:
@@ -12,14 +14,16 @@ def load_css():
     except OSError:
         st.warning("The application stylesheet could not be loaded.")
 
+
 def page_header(title: str, subtitle: str, eyebrow: str = "OMNIMETRICS WORKSPACE"):
-    """Render a consistent page title block."""
+    """Render a consistent page title block (arguments are trusted page copy)."""
     st.markdown(
-        f'<div class="om-eyebrow">{eyebrow}</div>'
-        f'<div class="om-page-title">{title}</div>'
-        f'<div class="om-page-subtitle">{subtitle}</div>',
+        f'<div class="om-eyebrow">{html.escape(eyebrow)}</div>'
+        f'<div class="om-page-title">{html.escape(title)}</div>'
+        f'<div class="om-page-subtitle">{html.escape(subtitle)}</div>',
         unsafe_allow_html=True,
     )
+
 
 def brand():
     """Render sidebar product identity."""
@@ -29,6 +33,7 @@ def brand():
         '<div class="om-brand-sub">Intelligence workspace</div></div></div>',
         unsafe_allow_html=True,
     )
+
 
 def require_login():
     """Stop access to protected pages when no user session exists."""

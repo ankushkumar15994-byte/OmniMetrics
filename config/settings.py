@@ -16,7 +16,7 @@ for d in [DATA_DIR, UPLOAD_DIR, EXPORT_DIR]:
     d.mkdir(parents=True, exist_ok=True)
 
 # Application Settings
-APP_NAME = os.getenv("APP_NAME", "DataInsight Pro")
+APP_NAME = os.getenv("APP_NAME", "OmniMetrics")
 DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{DATA_DIR}/datainsight.db")
 SECRET_KEY = os.getenv("SECRET_KEY", "default-secret-key")
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
