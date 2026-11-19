@@ -1,145 +1,88 @@
 import streamlit as st
-import pandas as pd
-import io
 from database.db import get_db
 from services.data_manager import get_user_datasets, load_dataset_as_df
 from preprocessing.cleaner import handle_missing_values, remove_duplicates, encode_categorical, scale_features, handle_outliers
+from utils.ui_utils import load_css, brand, page_header, require_login
 
-st.set_page_config(page_title="Data Cleaning", page_icon="🧹", layout="wide")
-from utils.ui_utils import load_css
-load_css()
-
-if 'user_id' not in st.session_state:
-    st.warning("Please log in to access this page.")
-    st.stop()
-
-db = next(get_db())
-user_id = st.session_state['user_id']
-
-st.title("🧹 Data Cleaning")
-
+st.set_page_config(page_title="Data Cleaning | OmniMetrics", page_icon="🧹", layout="wide")
+load_css(); brand(); require_login()
+page_header("Data preparation", "Improve data quality with guided transformations and reversible operations.", "DATA WORKSPACE")
+db = next(get_db()); user_id = st.session_state["user_id"]
 datasets = get_user_datasets(db, user_id)
 if not datasets:
-    st.warning("No datasets available. Please upload a dataset in the Dataset Manager.")
-    st.stop()
-
-# Select Dataset
-dataset_names = {ds.name: ds for ds in datasets}
-selected_ds_name = st.selectbox("Select a dataset to clean", list(dataset_names.keys()))
-dataset_obj = dataset_names[selected_ds_name]
-
-if 'current_df' not in st.session_state or st.session_state.get('current_ds_name') != selected_ds_name:
+    st.info("Upload a dataset in Dataset Manager before cleaning."); st.stop()
+dataset_map = {ds.name: ds for ds in datasets}
+selected = st.selectbox("Working dataset", list(dataset_map))
+ds = dataset_map[selected]
+if "current_df" not in st.session_state or st.session_state.get("current_ds_name") != selected:
     try:
-        st.session_state['current_df'] = load_dataset_as_df(dataset_obj)
-        st.session_state['current_ds_name'] = selected_ds_name
-        st.session_state['history'] = [] # For undo functionality
-    except Exception as e:
-        st.error(f"Failed to load dataset: {e}")
-        st.stop()
-
-df = st.session_state['current_df']
-
-def update_df(new_df, action_name):
-    st.session_state['history'].append((df.copy(), action_name))
-    st.session_state['current_df'] = new_df
+        st.session_state["current_df"] = load_dataset_as_df(ds)
+        st.session_state["current_ds_name"] = selected
+        st.session_state["history"] = []
+    except Exception as exc:
+        st.error(f"Could not load dataset: {exc}"); st.stop()
+df = st.session_state["current_df"]
+def apply_change(new_df, label):
+    st.session_state["history"].append((df.copy(), label))
+    st.session_state["current_df"] = new_df
     st.rerun()
-
-col1, col2 = st.columns([3, 1])
-
-with col1:
-    st.subheader("Data Preview")
+missing_count = int(df.isna().sum().sum()); duplicates = int(df.duplicated().sum())
+a,b,c,d = st.columns(4)
+a.metric("Rows", f"{len(df):,}"); b.metric("Columns", len(df.columns)); c.metric("Missing cells", f"{missing_count:,}"); d.metric("Duplicate rows", f"{duplicates:,}")
+preview, operations = st.columns([1.55, 1])
+with preview:
+    st.markdown("### Data preview")
     st.dataframe(df.head(50), use_container_width=True)
-    
-    st.subheader("Data Quality Report")
-    report_col1, report_col2, report_col3 = st.columns(3)
-    report_col1.metric("Total Rows", df.shape[0])
-    report_col2.metric("Total Columns", df.shape[1])
-    report_col3.metric("Duplicate Rows", df.duplicated().sum())
-    
-    st.write("**Missing Values:**")
-    missing_data = df.isnull().sum()
-    missing_data = missing_data[missing_data > 0].reset_index()
-    if not missing_data.empty:
-        missing_data.columns = ['Column', 'Missing Count']
-        st.dataframe(missing_data, use_container_width=True)
+    st.markdown("### Missing-value overview")
+    missing = df.isna().sum().loc[lambda x: x > 0]
+    if len(missing):
+        st.dataframe(missing.rename("Missing values").to_frame(), use_container_width=True)
     else:
-        st.success("No missing values found!")
-
-with col2:
-    st.subheader("Cleaning Operations")
-    
-    # 1. Missing Values
-    with st.expander("Missing Values"):
-        miss_cols = st.multiselect("Select columns", df.columns, key="miss_cols")
-        miss_strat = st.selectbox("Strategy", ["Drop Rows", "Drop Columns", "Mean", "Median", "Mode", "Forward Fill", "Backward Fill", "KNN Imputer"])
-        if st.button("Apply Imputation"):
-            try:
-                new_df = handle_missing_values(df, miss_strat, miss_cols)
-                update_df(new_df, f"Handled missing values ({miss_strat})")
-            except Exception as e:
-                st.error(str(e))
-                
-    # 2. Duplicates
-    with st.expander("Remove Duplicates"):
-        if st.button("Drop Duplicate Rows"):
-            new_df = remove_duplicates(df)
-            update_df(new_df, "Removed duplicates")
-            
-    # 3. Categorical Encoding
-    with st.expander("Categorical Encoding"):
-        cat_cols = df.select_dtypes(include=['object', 'category']).columns.tolist()
-        enc_cols = st.multiselect("Select Categorical Columns", cat_cols)
-        enc_strat = st.selectbox("Encoding Strategy", ["Label Encoding", "One Hot Encoding"])
-        if st.button("Apply Encoding"):
-            if not enc_cols:
-                st.error("Please select at least one column.")
+        st.success("No missing values detected.")
+with operations:
+    st.markdown("### Cleaning toolkit")
+    with st.expander("Fill or remove missing values", expanded=True):
+        cols = st.multiselect("Columns", df.columns.tolist(), key="miss_cols")
+        strategy = st.selectbox("Strategy", ["Drop Rows", "Drop Columns", "Mean", "Median", "Mode", "Forward Fill", "Backward Fill", "KNN Imputer"])
+        if st.button("Apply missing-value strategy", key="impute", type="primary"):
+            try: apply_change(handle_missing_values(df, strategy, cols), f"Missing values: {strategy}")
+            except Exception as exc: st.error(str(exc))
+    with st.expander("Remove duplicate records"):
+        st.caption(f"{duplicates:,} duplicate rows detected.")
+        if st.button("Remove duplicates"):
+            apply_change(remove_duplicates(df), "Removed duplicate rows")
+    with st.expander("Encode categorical features"):
+        cat = df.select_dtypes(include=["object", "category"]).columns.tolist()
+        enc = st.multiselect("Categorical columns", cat, key="enc_cols")
+        method = st.selectbox("Encoding method", ["Label Encoding", "One Hot Encoding"])
+        if st.button("Apply encoding"):
+            if not enc: st.error("Select at least one categorical column.")
             else:
-                try:
-                    new_df = encode_categorical(df, enc_strat, enc_cols)
-                    update_df(new_df, f"{enc_strat} applied")
-                except Exception as e:
-                    st.error(str(e))
-                
-    # 4. Feature Scaling
-    with st.expander("Feature Scaling"):
-        num_cols = df.select_dtypes(include=['int64', 'float64']).columns.tolist()
-        scale_cols = st.multiselect("Select Numerical Columns", num_cols, key="scale_cols")
-        scale_strat = st.selectbox("Scaler", ["StandardScaler", "MinMaxScaler", "RobustScaler"])
-        if st.button("Apply Scaling"):
-            if not scale_cols:
-                st.error("Please select at least one column.")
+                try: apply_change(encode_categorical(df, method, enc), f"Encoding: {method}")
+                except Exception as exc: st.error(str(exc))
+    with st.expander("Scale numerical features"):
+        numeric = df.select_dtypes(include=["int64", "float64"]).columns.tolist()
+        scale_cols = st.multiselect("Numerical columns", numeric, key="scale_cols")
+        scaler = st.selectbox("Scaler", ["StandardScaler", "MinMaxScaler", "RobustScaler"])
+        if st.button("Apply scaling"):
+            if not scale_cols: st.error("Select at least one numerical column.")
             else:
-                try:
-                    new_df = scale_features(df, scale_strat, scale_cols)
-                    update_df(new_df, f"{scale_strat} applied")
-                except Exception as e:
-                    st.error(str(e))
-                
-    # 5. Outliers
-    with st.expander("Handle Outliers"):
-        out_cols = st.multiselect("Select Numerical Columns", num_cols, key="out_cols")
-        out_strat = st.selectbox("Strategy", ["IQR (Clip)"])
-        if st.button("Apply Outlier Handling"):
-            if not out_cols:
-                st.error("Please select at least one column.")
+                try: apply_change(scale_features(df, scaler, scale_cols), f"Scaling: {scaler}")
+                except Exception as exc: st.error(str(exc))
+    with st.expander("Handle outliers"):
+        out_cols = st.multiselect("Numerical columns", numeric, key="out_cols")
+        if st.button("Clip outliers using IQR"):
+            if not out_cols: st.error("Select at least one numerical column.")
             else:
-                try:
-                    new_df = handle_outliers(df, out_strat, out_cols)
-                    update_df(new_df, "Outliers clipped (IQR)")
-                except Exception as e:
-                    st.error(str(e))
-
-    st.markdown("---")
-    if st.button("⏪ Undo Last Action") and st.session_state['history']:
-        last_df, action = st.session_state['history'].pop()
-        st.session_state['current_df'] = last_df
-        st.rerun()
-
-    if st.button("💾 Download Cleaned Dataset"):
-        csv = st.session_state['current_df'].to_csv(index=False)
-        st.download_button(
-            label="Download CSV",
-            data=csv,
-            file_name=f"cleaned_{selected_ds_name}.csv",
-            mime="text/csv",
-        )
+                try: apply_change(handle_outliers(df, "IQR (Clip)", out_cols), "Outliers clipped (IQR)")
+                except Exception as exc: st.error(str(exc))
+st.divider()
+x,y,z = st.columns([1,1,3])
+with x:
+    if st.button("Undo last operation", disabled=not st.session_state["history"]):
+        previous, action = st.session_state["history"].pop()
+        st.session_state["current_df"] = previous; st.rerun()
+with y:
+    st.download_button("Download cleaned CSV", data=df.to_csv(index=False), file_name=f"cleaned_{selected.rsplit('.',1)[0]}.csv", mime="text/csv", use_container_width=True)
+with z:
+    st.caption(f"Transformation history: {len(st.session_state['history'])} reversible operation(s). Changes are held in this session until downloaded.")

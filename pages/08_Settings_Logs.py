@@ -1,49 +1,35 @@
 import streamlit as st
+import os
 from database.db import get_db
 from database.models import ActivityLog
 from config.settings import DATA_DIR
-import os
+from utils.ui_utils import load_css, brand, page_header, require_login
 
-st.set_page_config(page_title="Settings & Logs", page_icon="⚙️", layout="wide")
-from utils.ui_utils import load_css
-load_css()
-
-if 'user_id' not in st.session_state:
-    st.warning("Please log in to access this page.")
-    st.stop()
-
-db = next(get_db())
-user_id = st.session_state['user_id']
-
-st.title("⚙️ Settings & Activity Logs")
-
-tab1, tab2 = st.tabs(["Activity Logs", "Database & Settings"])
-
-with tab1:
-    st.subheader("Your Recent Activity")
-    logs = db.query(ActivityLog).filter(ActivityLog.user_id == user_id).order_by(ActivityLog.timestamp.desc()).limit(50).all()
-    
-    if not logs:
-        st.info("No activity logs found.")
-    else:
-        log_data = [{"Timestamp": log.timestamp.strftime("%Y-%m-%d %H:%M:%S"), "Action": log.action} for log in logs]
-        st.dataframe(log_data, use_container_width=True)
-
-with tab2:
-    st.subheader("System Settings")
-    st.write("Theme and UI settings are managed natively by Streamlit in the top right menu (⚙️ -> Settings -> Theme).")
-    
-    st.subheader("Database Backup")
-    st.write("Download a full backup of the SQLite database containing all metadata, logs, and users.")
-    
-    db_path = DATA_DIR / "datainsight.db"
-    if os.path.exists(db_path):
-        with open(db_path, "rb") as f:
-            st.download_button(
-                label="Download Database Backup (.db)",
-                data=f,
-                file_name="datainsight_backup.db",
-                mime="application/octet-stream"
-            )
-    else:
-        st.warning("Database file not found.")
+st.set_page_config(page_title="Settings & Activity | OmniMetrics", page_icon="⚙️", layout="wide")
+load_css(); brand(); require_login()
+page_header("Settings & activity", "Review workspace activity and manage local database backup.", "WORKSPACE ADMINISTRATION")
+db=next(get_db()); user_id=st.session_state["user_id"]
+profile,access=st.columns([1,1])
+with profile:
+    with st.container(border=True):
+        st.markdown("### Account")
+        st.markdown(f"**Username**  \n{st.session_state.get('username','User')}")
+        st.markdown(f"**Role**  \n{str(st.session_state.get('role','user')).title()}")
+with access:
+    with st.container(border=True):
+        st.markdown("### Workspace appearance")
+        st.write("OmniMetrics currently uses the Midnight Pro theme configured for this application.")
+        st.caption("The visual theme does not change stored data or account settings.")
+logs=db.query(ActivityLog).filter(ActivityLog.user_id==user_id).order_by(ActivityLog.timestamp.desc()).limit(50).all()
+st.markdown("### Recent activity")
+if logs:
+    data=[{"Timestamp":log.timestamp.strftime("%Y-%m-%d %H:%M:%S"),"Action":log.action} for log in logs]
+    st.dataframe(data,use_container_width=True,hide_index=True)
+else: st.info("No activity has been recorded yet.")
+st.markdown("### Database backup")
+st.caption("Download a copy of your local SQLite database, including user, dataset metadata and activity records.")
+db_path=DATA_DIR/"datainsight.db"
+if os.path.exists(db_path):
+    with open(db_path,"rb") as file:
+        st.download_button("Download database backup",file,file_name="omnimetrics_backup.db",mime="application/octet-stream")
+else: st.warning("SQLite database file not found. If you use a remote database, local backup is not available here.")
