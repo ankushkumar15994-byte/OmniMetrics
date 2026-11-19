@@ -15,8 +15,20 @@ if 'user_id' not in st.session_state:
 db = next(get_db())
 user_id = st.session_state['user_id']
 
-st.title("📈 Dashboard Builder")
-st.write("Build a custom dashboard by adding KPI metrics and charts.")
+st.markdown("""
+<div style="margin-bottom: 1.5rem;">
+    <div style="display: inline-flex; align-items: center; gap: 8px; font-size: 0.8rem; font-weight: 600; color: #908fa0; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">
+        <span class="pulse-dot"></span>
+        <span style="color: #6366f1;">Visual Analytics Canvas</span>
+    </div>
+    <h1 style="margin: 0; font-size: 2.3rem; font-weight: 800; letter-spacing: -0.03em;">
+        Dashboard <span class="gradient-text">Builder</span>
+    </h1>
+    <p style="color: var(--text-secondary); font-size: 1rem; margin-top: 4px;">
+        Build executive dashboards by assembling custom KPI metric counters and interactive Plotly charts.
+    </p>
+</div>
+""", unsafe_allow_html=True)
 
 datasets = get_user_datasets(db, user_id)
 if not datasets:

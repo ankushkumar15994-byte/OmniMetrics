@@ -18,13 +18,21 @@ def create_user(db: Session, username: str, email: str, password: str) -> User:
         
     hashed_pwd = hash_password(password)
     new_user = User(username=username, email=email, hashed_password=hashed_pwd)
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
-    log_activity(db, new_user.id, "User Registered")
-    return new_user
+    try:
+        db.add(new_user)
+        db.commit()
+        db.refresh(new_user)
+        log_activity(db, new_user.id, "User Registered")
+        return new_user
+    except Exception:
+        db.rollback()
+        raise
 
 def log_activity(db: Session, user_id: int, action: str, details: str = None):
-    log = ActivityLog(user_id=user_id, action=action, details=details)
-    db.add(log)
-    db.commit()
+    try:
+        log = ActivityLog(user_id=user_id, action=action, details=details)
+        db.add(log)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
