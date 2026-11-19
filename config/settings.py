@@ -16,8 +16,19 @@ for d in [DATA_DIR, UPLOAD_DIR, EXPORT_DIR]:
     d.mkdir(parents=True, exist_ok=True)
 
 # Application Settings
-APP_NAME = os.getenv("APP_NAME", "DataInsight Pro")
-DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{DATA_DIR}/datainsight.db")
-SECRET_KEY = os.getenv("SECRET_KEY", "default-secret-key")
-ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
-LLM_API_KEY = os.getenv("LLM_API_KEY", "")
+def _get_setting(key: str, default: str = "") -> str:
+    val = os.getenv(key)
+    if not val:
+        try:
+            import streamlit as st
+            if key in st.secrets:
+                val = str(st.secrets[key])
+        except Exception:
+            pass
+    return val if val else default
+
+APP_NAME = _get_setting("APP_NAME", "DataInsight Pro")
+DATABASE_URL = _get_setting("DATABASE_URL", f"sqlite:///{DATA_DIR}/datainsight.db")
+SECRET_KEY = _get_setting("SECRET_KEY", "default-secret-key")
+ENVIRONMENT = _get_setting("ENVIRONMENT", "development")
+LLM_API_KEY = _get_setting("LLM_API_KEY", "")
