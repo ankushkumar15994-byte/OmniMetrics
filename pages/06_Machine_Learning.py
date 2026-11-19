@@ -29,7 +29,7 @@ if st.button("Train and compare models",type="primary"):
             st.session_state["ml_results"]=results; st.session_state["trained_models"]=models; st.session_state["ml_dataset"]=selected
             st.success("Training completed.")
         except Exception as exc: st.error(f"Training failed: {exc}")
-if "ml_results" in st.session_state:
+if st.session_state.get("ml_dataset") == selected and "ml_results" in st.session_state:
     st.markdown("### Model leaderboard")
     st.dataframe(st.session_state["ml_results"],use_container_width=True)
     models=st.session_state["trained_models"]

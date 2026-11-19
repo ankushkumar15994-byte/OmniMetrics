@@ -20,6 +20,7 @@ num_cols = df.select_dtypes(include=["number"]).columns.tolist()
 cat_cols = df.select_dtypes(include=["object","category"]).columns.tolist()
 a,b,c,d = st.columns(4)
 a.metric("Records", f"{len(df):,}"); b.metric("Features", len(df.columns)); c.metric("Numeric features", len(num_cols)); d.metric("Missing cells", f"{int(df.isna().sum().sum()):,}")
+profile_state_key = f"om_profile_html_{selected}"
 charts_tab, profile_tab = st.tabs(["Interactive visualizations", "Automated profiling"])
 with charts_tab:
     controls, visual = st.columns([1,2.1])
@@ -66,7 +67,7 @@ with profile_tab:
             try:
                 report = ProfileReport(df, minimal=True, title=f"Profile: {selected}")
                 html = report.to_html()
-                st.session_state["om_profile_html"] = html
+                st.session_state[profile_state_key] = html
             except Exception as exc: st.error(f"Profiling failed: {exc}")
-    if st.session_state.get("om_profile_html"):
-        components.html(st.session_state["om_profile_html"], height=1000, scrolling=True)
+    if st.session_state.get(profile_state_key):
+        components.html(st.session_state[profile_state_key], height=1000, scrolling=True)
