@@ -1,86 +1,46 @@
 import streamlit as st
-import pandas as pd
 from database.db import get_db
 from services.data_manager import get_user_datasets, load_dataset_as_df
 from machine_learning.models import train_classification, train_regression, train_clustering, save_model
+from utils.ui_utils import load_css, brand, page_header, require_login
 
-st.set_page_config(page_title="Machine Learning Studio", page_icon="🤖", layout="wide")
-from utils.ui_utils import load_css
-load_css()
-
-if 'user_id' not in st.session_state:
-    st.warning("Please log in to access this page.")
-    st.stop()
-
-db = next(get_db())
-user_id = st.session_state['user_id']
-
-st.title("🤖 Machine Learning Studio")
-st.write("Train and compare multiple algorithms instantly. (Data will be automatically subset to numerical columns. Please encode categories using the Data Cleaning tab if needed).")
-
-datasets = get_user_datasets(db, user_id)
-if not datasets:
-    st.warning("No datasets available. Please upload one in the Dataset Manager.")
-    st.stop()
-
-dataset_names = {ds.name: ds for ds in datasets}
-selected_ds_name = st.selectbox("Select a dataset for ML", list(dataset_names.keys()))
-dataset_obj = dataset_names[selected_ds_name]
-
+st.set_page_config(page_title="Machine Learning Studio | OmniMetrics", page_icon="🤖", layout="wide")
+load_css(); brand(); require_login()
+page_header("Machine learning studio", "Train, compare and export models using your prepared datasets.", "MODEL DEVELOPMENT")
+db = next(get_db()); datasets = get_user_datasets(db, st.session_state["user_id"])
+if not datasets: st.info("Upload a dataset to begin model training."); st.stop()
+mapping = {ds.name:ds for ds in datasets}
+selected = st.selectbox("Training dataset",list(mapping)); ds = mapping[selected]
 try:
-    df = load_dataset_as_df(dataset_obj)
-    # Ensure dataframe is numeric for ML
-    num_df = df.select_dtypes(include=['number'])
-except Exception as e:
-    st.error(f"Failed to load dataset: {e}")
-    st.stop()
-
-if num_df.empty:
-    st.error("Dataset must contain numerical columns for Machine Learning. Please clean/encode it first.")
-    st.stop()
-
-if len(num_df.columns) < len(df.columns):
-    st.info("Note: Non-numerical columns have been automatically excluded for Machine Learning.")
-
-problem_type = st.radio("Select Problem Type", ["Classification", "Regression", "Clustering"], horizontal=True)
-
-target_col = None
-if problem_type in ["Classification", "Regression"]:
-    target_col = st.selectbox("Select Target Column (y)", num_df.columns)
-
-if st.button("🚀 Train Models", type="primary"):
-    with st.spinner("Training models in parallel..."):
+    df = load_dataset_as_df(ds); numeric_df = df.select_dtypes(include=["number"])
+except Exception as exc: st.error(f"Could not load dataset: {exc}"); st.stop()
+a,b,c = st.columns(3); a.metric("Source rows",f"{len(df):,}"); b.metric("Numeric features",len(numeric_df.columns)); c.metric("Excluded categorical",len(df.columns)-len(numeric_df.columns))
+if numeric_df.empty: st.error("The dataset needs numerical features. Encode categorical columns in Data Cleaning first."); st.stop()
+if len(numeric_df.columns)<len(df.columns): st.info("Categorical columns are excluded automatically. Encode them first if they should be included.")
+st.markdown("### Configure training")
+problem = st.radio("Problem type",["Classification","Regression","Clustering"],horizontal=True)
+target = st.selectbox("Target variable",numeric_df.columns) if problem in ["Classification","Regression"] else None
+if st.button("Train and compare models",type="primary"):
+    with st.spinner("Training candidate models..."):
         try:
-            if problem_type == "Classification":
-                results_df, trained_models = train_classification(num_df, target_col)
-                st.session_state['ml_results'] = results_df
-                st.session_state['trained_models'] = trained_models
-            elif problem_type == "Regression":
-                results_df, trained_models = train_regression(num_df, target_col)
-                st.session_state['ml_results'] = results_df
-                st.session_state['trained_models'] = trained_models
-            elif problem_type == "Clustering":
-                results_df, trained_models = train_clustering(num_df)
-                st.session_state['ml_results'] = results_df
-                st.session_state['trained_models'] = trained_models
-            st.success("Models trained successfully!")
-        except Exception as e:
-            st.error(f"Error during training: {e}")
-
-if 'ml_results' in st.session_state:
-    st.subheader("Leaderboard")
-    st.dataframe(st.session_state['ml_results'], use_container_width=True)
-    
-    st.markdown("---")
-    st.subheader("💾 Save Winning Model")
-    models = st.session_state['trained_models']
-    selected_model_name = st.selectbox("Select a model to save", list(models.keys()))
-    
-    if st.button("Save Selected Model"):
-        model_to_save = models[selected_model_name]
-        filename = f"{selected_model_name.replace(' ', '_').lower()}_{selected_ds_name.replace('.csv', '')}.joblib"
-        path = save_model(model_to_save, filename)
-        st.success(f"Model saved locally at: `{path}`")
-        
-        with open(path, "rb") as f:
-            st.download_button("Download Model File (.joblib)", f, file_name=filename)
+            if problem=="Classification": results,models=train_classification(numeric_df,target)
+            elif problem=="Regression": results,models=train_regression(numeric_df,target)
+            else: results,models=train_clustering(numeric_df)
+            st.session_state["ml_results"]=results; st.session_state["trained_models"]=models; st.session_state["ml_dataset"]=selected
+            st.success("Training completed.")
+        except Exception as exc: st.error(f"Training failed: {exc}")
+if st.session_state.get("ml_dataset") == selected and "ml_results" in st.session_state:
+    st.markdown("### Model leaderboard")
+    st.dataframe(st.session_state["ml_results"],use_container_width=True)
+    models=st.session_state["trained_models"]
+    if models:
+        st.markdown("### Export a trained model")
+        chosen=st.selectbox("Model to save",list(models.keys()))
+        if st.button("Save selected model"):
+            try:
+                filename=f"{chosen.replace(' ','_').lower()}_{selected.rsplit('.csv',1)[0]}.joblib"
+                path=save_model(models[chosen],filename)
+                with open(path,"rb") as model_file:
+                    st.download_button("Download model (.joblib)",model_file,file_name=filename)
+                st.success(f"Model saved locally at {path}")
+            except Exception as exc: st.error(f"Could not save model: {exc}")

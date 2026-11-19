@@ -1,137 +1,60 @@
 import streamlit as st
-import pandas as pd
 from database.db import get_db
 from services.data_manager import get_user_datasets, load_dataset_as_df
 from visualizations.charts import plot_histogram, plot_scatter, plot_bar, plot_pie, plot_line
+from utils.ui_utils import load_css, brand, page_header, require_login
 
-st.set_page_config(page_title="Dashboard Builder", page_icon="📈", layout="wide")
-from utils.ui_utils import load_css
-load_css()
-
-if 'user_id' not in st.session_state:
-    st.warning("Please log in to access this page.")
-    st.stop()
-
-db = next(get_db())
-user_id = st.session_state['user_id']
-
-st.title("📈 Dashboard Builder")
-st.write("Build a custom dashboard by adding KPI metrics and charts.")
-
-datasets = get_user_datasets(db, user_id)
-if not datasets:
-    st.warning("No datasets available. Please upload one in the Dataset Manager.")
-    st.stop()
-
-dataset_names = {ds.name: ds for ds in datasets}
-selected_ds_name = st.selectbox("Select a dataset to build dashboard on", list(dataset_names.keys()))
-dataset_obj = dataset_names[selected_ds_name]
-
-try:
-    df = load_dataset_as_df(dataset_obj)
-except Exception as e:
-    st.error(f"Failed to load dataset: {e}")
-    st.stop()
-
-# Dashboard State
-if f'dash_elements_{selected_ds_name}' not in st.session_state:
-    st.session_state[f'dash_elements_{selected_ds_name}'] = []
-
-dash_elements = st.session_state[f'dash_elements_{selected_ds_name}']
-
-# --- Sidebar: Add Elements ---
-with st.sidebar:
-    st.header("Add Dashboard Element")
-    elem_type = st.radio("Element Type", ["KPI Metric", "Chart"])
-    
-    if elem_type == "KPI Metric":
-        kpi_name = st.text_input("Metric Name", "Total Sales")
-        num_cols = df.select_dtypes(include=['number']).columns.tolist()
-        if not num_cols:
-            st.error("No numerical columns available for KPI.")
-        else:
-            kpi_col = st.selectbox("Numerical Column for Metric", num_cols)
-            kpi_agg = st.selectbox("Aggregation", ["Sum", "Average", "Count", "Max", "Min"])
-            if st.button("Add KPI"):
-                dash_elements.append({
-                    "type": "kpi",
-                    "name": kpi_name,
-                    "col": kpi_col,
-                    "agg": kpi_agg
-                })
-                st.rerun()
-            
-    elif elem_type == "Chart":
-        chart_type = st.selectbox("Chart", ["Bar Chart", "Line Chart", "Scatter Plot", "Pie Chart", "Histogram"])
-        all_cols = df.columns.tolist()
-        num_cols = df.select_dtypes(include=['number']).columns.tolist()
-        
-        x_col = st.selectbox("X-Axis / Labels", all_cols)
-        y_col = st.selectbox("Y-Axis / Values (Optional)", ["None"] + num_cols)
-        
-        if st.button("Add Chart"):
-            dash_elements.append({
-                "type": "chart",
-                "chart_type": chart_type,
-                "x": x_col,
-                "y": None if y_col == "None" else y_col
-            })
-            st.rerun()
-            
-    st.markdown("---")
-    if st.button("Clear Dashboard", type="primary"):
-        st.session_state[f'dash_elements_{selected_ds_name}'] = []
-        st.rerun()
-
-# --- Main Area: Render Dashboard ---
-if not dash_elements:
-    st.info("Your dashboard is empty. Use the sidebar to add KPIs and Charts.")
+st.set_page_config(page_title="Dashboard Builder | OmniMetrics", page_icon="📈", layout="wide")
+load_css(); brand(); require_login()
+page_header("Dashboard builder", "Compose an interactive view from KPI metrics and charts.", "REPORTING WORKSPACE")
+db = next(get_db()); datasets = get_user_datasets(db, st.session_state["user_id"])
+if not datasets: st.info("Upload a dataset before creating a dashboard."); st.stop()
+mapping = {ds.name: ds for ds in datasets}
+selected = st.selectbox("Source dataset", list(mapping)); ds = mapping[selected]
+try: df = load_dataset_as_df(ds)
+except Exception as exc: st.error(f"Could not load dataset: {exc}"); st.stop()
+state_key = f"dash_elements_{selected}"
+if state_key not in st.session_state: st.session_state[state_key] = []
+elements = st.session_state[state_key]
+with st.expander("＋ Add dashboard element", expanded=not bool(elements)):
+    kind = st.radio("Element type", ["KPI Metric","Chart"], horizontal=True)
+    numeric = df.select_dtypes(include=["number"]).columns.tolist()
+    if kind == "KPI Metric":
+        name = st.text_input("Metric label", "Total value")
+        if numeric:
+            col = st.selectbox("Numerical column", numeric); agg = st.selectbox("Aggregation", ["Sum","Average","Count","Max","Min"])
+            if st.button("Add KPI", type="primary"):
+                elements.append({"type":"kpi","name":name,"col":col,"agg":agg}); st.rerun()
+        else: st.warning("No numerical columns are available for KPI metrics.")
+    else:
+        chart = st.selectbox("Chart type", ["Bar Chart","Line Chart","Scatter Plot","Pie Chart","Histogram"])
+        x = st.selectbox("X axis / labels", df.columns.tolist()); y = st.selectbox("Y axis / values", ["None"]+numeric)
+        if st.button("Add chart", type="primary"):
+            elements.append({"type":"chart","chart_type":chart,"x":x,"y":None if y=="None" else y}); st.rerun()
+if not elements:
+    st.info("Your canvas is empty. Add a KPI or chart to start building your dashboard.")
 else:
-    # Separate KPIs and Charts for better layout
-    kpis = [e for e in dash_elements if e['type'] == 'kpi']
-    charts = [e for e in dash_elements if e['type'] == 'chart']
-    
-    # Render KPIs in columns (max 4 per row)
+    kpis = [e for e in elements if e["type"]=="kpi"]; charts = [e for e in elements if e["type"]=="chart"]
     if kpis:
-        st.subheader("Key Performance Indicators")
-        # Ensure we have at least 1 column and at most 4
-        num_cols = min(len(kpis), 4)
-        num_cols = max(num_cols, 1)
-        kpi_cols = st.columns(num_cols)
-        
-        for i, kpi in enumerate(kpis):
-            col_idx = i % 4
-            val = 0
-            if kpi['agg'] == 'Sum': val = df[kpi['col']].sum()
-            elif kpi['agg'] == 'Average': val = df[kpi['col']].mean()
-            elif kpi['agg'] == 'Count': val = df[kpi['col']].count()
-            elif kpi['agg'] == 'Max': val = df[kpi['col']].max()
-            elif kpi['agg'] == 'Min': val = df[kpi['col']].min()
-            
-            kpi_cols[col_idx].metric(label=kpi['name'], value=round(val, 2) if isinstance(val, float) else val)
-            
-    st.markdown("---")
-    
-    # Render Charts in columns (2 per row)
+        st.markdown("### Key performance indicators")
+        cols = st.columns(min(len(kpis),4))
+        for i,item in enumerate(kpis):
+            series = df[item["col"]]
+            value = {"Sum":series.sum(),"Average":series.mean(),"Count":series.count(),"Max":series.max(),"Min":series.min()}[item["agg"]]
+            cols[i%len(cols)].metric(item["name"], f"{value:,.2f}" if isinstance(value,(float,int)) else str(value))
     if charts:
-        st.subheader("Visualizations")
-        for i in range(0, len(charts), 2):
+        st.markdown("### Visualizations")
+        for index in range(0,len(charts),2):
             cols = st.columns(2)
-            for j in range(2):
-                if i + j < len(charts):
-                    chart_info = charts[i+j]
-                    with cols[j]:
-                        st.markdown(f"**{chart_info['chart_type']}**")
-                        try:
-                            if chart_info['chart_type'] == "Bar Chart":
-                                st.plotly_chart(plot_bar(df, chart_info['x'], chart_info['y']), use_container_width=True)
-                            elif chart_info['chart_type'] == "Line Chart":
-                                st.plotly_chart(plot_line(df, chart_info['x'], chart_info['y']), use_container_width=True)
-                            elif chart_info['chart_type'] == "Scatter Plot":
-                                st.plotly_chart(plot_scatter(df, chart_info['x'], chart_info['y']), use_container_width=True)
-                            elif chart_info['chart_type'] == "Pie Chart":
-                                st.plotly_chart(plot_pie(df, chart_info['x'], chart_info['y']), use_container_width=True)
-                            elif chart_info['chart_type'] == "Histogram":
-                                st.plotly_chart(plot_histogram(df, chart_info['x']), use_container_width=True)
-                        except Exception as e:
-                            st.error(f"Could not render chart: {e}")
+            for j,item in enumerate(charts[index:index+2]):
+                with cols[j]:
+                    st.markdown(f"**{item['chart_type']}**")
+                    try:
+                        y = item["y"]
+                        fig = {"Bar Chart":lambda:plot_bar(df,item["x"],y),"Line Chart":lambda:plot_line(df,item["x"],y),"Scatter Plot":lambda:plot_scatter(df,item["x"],y),"Pie Chart":lambda:plot_pie(df,item["x"],y),"Histogram":lambda:plot_histogram(df,item["x"])}[item["chart_type"]]()
+                        try: fig.update_layout(template="plotly_dark",paper_bgcolor="rgba(0,0,0,0)",plot_bgcolor="rgba(0,0,0,0)")
+                        except Exception: pass
+                        st.plotly_chart(fig,use_container_width=True)
+                    except Exception as exc: st.error(f"Chart could not be displayed: {exc}")
+    if st.button("Clear dashboard", type="secondary"):
+        st.session_state[state_key] = []; st.rerun()

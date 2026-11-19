@@ -1,112 +1,85 @@
+import html
 import streamlit as st
 from database.db import engine, Base
 from config.settings import APP_NAME
-
-# Initialize database tables
-Base.metadata.create_all(bind=engine)
+from utils.ui_utils import load_css, brand
 
 st.set_page_config(
-    page_title=APP_NAME,
+    page_title=f"{APP_NAME} | OmniMetrics",
     page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded",
 )
-from utils.ui_utils import load_css
+
+# Initialize database tables without changing the existing data layer.
+Base.metadata.create_all(bind=engine)
 load_css()
+brand()
 
-# Landing Page CSS for animations and styling
-st.markdown("""
-<style>
-    .hero-title {
-        font-size: 4rem !important;
-        font-weight: 800;
-        background: -webkit-linear-gradient(45deg, #4facfe 0%, #00f2fe 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        margin-bottom: 0px;
-    }
-    .hero-subtitle {
-        font-size: 1.5rem;
-        color: #888;
-        margin-top: -10px;
-        margin-bottom: 30px;
-    }
-    .feature-box {
-        padding: 20px;
-        border-radius: 10px;
-        background-color: rgba(255, 255, 255, 0.05);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        transition: transform 0.3s;
-    }
-    .feature-box:hover {
-        transform: translateY(-5px);
-        border-color: #4facfe;
-    }
-</style>
-""", unsafe_allow_html=True)
-
-st.markdown(f"<div class='hero-title'>Welcome to {APP_NAME}</div>", unsafe_allow_html=True)
-st.markdown("<div class='hero-subtitle'>The Enterprise AI-Powered Data Analytics Platform</div>", unsafe_allow_html=True)
-
-if 'user_id' in st.session_state:
-    st.success(f"👋 Welcome back, {st.session_state['username']}! Use the sidebar to continue your analysis.")
-    if st.button("Logout", type="primary"):
-        for key in ['user_id', 'username', 'role']:
-            if key in st.session_state:
-                del st.session_state[key]
+# Sidebar session context. Escape the account name before rendering trusted HTML.
+if "user_id" in st.session_state:
+    safe_username = html.escape(str(st.session_state.get("username", "User")))
+    st.sidebar.markdown(
+        f'<div class="om-status"><span class="om-dot"></span> Signed in as '
+        f'{safe_username}</div>',
+        unsafe_allow_html=True,
+    )
+    if st.sidebar.button("Sign out", use_container_width=True):
+        for key in ("user_id", "username", "role"):
+            st.session_state.pop(key, None)
         st.rerun()
 else:
-    st.info("🔐 You are currently logged out. Please navigate to the **Login** page in the sidebar to securely access the platform.")
+    st.sidebar.caption("Sign in to unlock your workspace.")
 
+st.markdown(
+    '<section class="om-hero">'
+    '<div class="om-chip">✦ AI-POWERED ANALYTICS WORKSPACE</div>'
+    '<div class="om-hero-title">Turn data into decisions.</div>'
+    '<div class="om-hero-copy">Explore, clean, model and communicate your data in one '
+    'connected workspace. Move from raw datasets to explainable insights with OmniMetrics.</div>'
+    '</section>',
+    unsafe_allow_html=True,
+)
+
+if "user_id" in st.session_state:
+    safe_username = html.escape(str(st.session_state.get("username", "there")))
+    st.success(f"Welcome back, {safe_username}. Your analytics workspace is ready.")
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Workspace", "Active", help="You are authenticated.")
+    c2.metric("Analytics modules", "6", help="Dataset, Cleaning, EDA, Dashboard, ML and Insights.")
+    c3.metric("Access level", str(st.session_state.get("role", "user")).title())
+    st.markdown('<div class="om-section">Continue your workflow</div>', unsafe_allow_html=True)
+    a, b, c = st.columns(3)
+    with a:
+        st.page_link("pages/02_Dataset_Manager.py", label="Open Dataset Manager", icon="🗂️", use_container_width=True)
+        st.page_link("pages/03_Data_Cleaning.py", label="Clean a dataset", icon="🧹", use_container_width=True)
+    with b:
+        st.page_link("pages/04_Exploratory_Data_Analysis.py", label="Explore data", icon="📊", use_container_width=True)
+        st.page_link("pages/05_Dashboard_Builder.py", label="Build dashboard", icon="📈", use_container_width=True)
+    with c:
+        st.page_link("pages/06_Machine_Learning.py", label="Train a model", icon="🤖", use_container_width=True)
+        st.page_link("pages/07_Insights_Reports.py", label="Generate insights", icon="✨", use_container_width=True)
+else:
+    st.info("🔐 You are currently logged out. Sign in to access your private analytics workspace.")
+    st.page_link("pages/01_Login.py", label="Go to secure login", icon="🔐")
+    st.markdown('<div class="om-section">A complete analytics toolkit</div>', unsafe_allow_html=True)
+    features = [
+        ("🗂️", "Dataset workspace", "Upload, preview and manage CSV, Excel and JSON datasets."),
+        ("🧹", "Smart data cleaning", "Impute missing values, remove duplicates, encode and scale features."),
+        ("📊", "Exploratory analysis", "Build interactive charts and generate automated profiling reports."),
+        ("📈", "Dashboard builder", "Compose KPI metrics and visualizations for your datasets."),
+        ("🤖", "Machine learning studio", "Train classification, regression and clustering models."),
+        ("✨", "AI insights & reports", "Surface data quality signals, anomalies and recommendations."),
+    ]
+    cols = st.columns(3)
+    for index, (icon, title, copy) in enumerate(features):
+        with cols[index % 3]:
+            st.markdown(
+                f'<div class="om-feature"><div class="om-feature-icon">{icon}</div>'
+                f'<div class="om-feature-title">{title}</div>'
+                f'<div class="om-feature-copy">{copy}</div></div>',
+                unsafe_allow_html=True,
+            )
+            st.write("")
 st.markdown("---")
-st.markdown("### 🚀 Platform Features")
-
-col1, col2, col3 = st.columns(3)
-
-with col1:
-    st.markdown("""
-    <div class='feature-box'>
-        <h3>📁 Dataset Manager</h3>
-        <p>Securely upload and manage your CSV, Excel, and JSON datasets. Tracks metadata and storage natively.</p>
-    </div>
-    """, unsafe_allow_html=True)
-    st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown("""
-    <div class='feature-box'>
-        <h3>📊 Auto EDA & Profiling</h3>
-        <p>Generate deep HTML profiling reports and interact with 9 different Plotly charts instantly.</p>
-    </div>
-    """, unsafe_allow_html=True)
-
-with col2:
-    st.markdown("""
-    <div class='feature-box'>
-        <h3>🧹 Smart Data Cleaning</h3>
-        <p>Impute missing values, drop duplicates, encode categories, and handle outliers with built-in undo capabilities.</p>
-    </div>
-    """, unsafe_allow_html=True)
-    st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown("""
-    <div class='feature-box'>
-        <h3>🤖 Auto-ML Studio</h3>
-        <p>Train Classification, Regression, and Clustering models in parallel. View leaderboards and download winning models.</p>
-    </div>
-    """, unsafe_allow_html=True)
-
-with col3:
-    st.markdown("""
-    <div class='feature-box'>
-        <h3>📈 Dashboard Builder</h3>
-        <p>Build custom drag-and-drop style dashboards with dynamic KPI metrics and data visualizations.</p>
-    </div>
-    """, unsafe_allow_html=True)
-    st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown("""
-    <div class='feature-box'>
-        <h3>🧠 AI Insights Engine</h3>
-        <p>Calculates Dataset Health Scores, detects hidden anomalies, and generates downloadable Markdown reports.</p>
-    </div>
-    """, unsafe_allow_html=True)
-
-st.markdown("---")
-st.markdown("<p style='text-align: center; color: #666;'>Built with ❤️ using Python and Streamlit. Adheres to SOLID Principles & Clean Architecture.</p>", unsafe_allow_html=True)
+st.caption("OmniMetrics · Built with Python and Streamlit · Designed for data-driven teams")
